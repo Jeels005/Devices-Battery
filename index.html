@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+    <section class="card battery-wrap" aria-labelledby="battery-heading">
+      <h2 id="battery-heading" style="margin:0 0 4px 0">Advanced Battery Checker</h2>
+      <p class="small muted" style="margin:0 0 12px 0">Real-time battery status using the Battery Status API (or demo mode if unsupported).</p>
+
+      <div class="battery-canvas" role="img" aria-label="Battery visual representation">
+        <!-- SVG battery frame -->
+        <svg class="battery-svg" viewBox="0 0 520 320" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <defs>
+            <linearGradient id="g1" x1="0" x2="1">
+              <stop offset="0" stop-color="#7ee8fa" stop-opacity="0.95"/>
+              <stop offset="1" stop-color="#4facfe" stop-opacity="0.95"/>
+            </linearGradient>
+            <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="12" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- Battery outline -->
+          <rect x="34" y="40" width="420" height="220" rx="22" ry="22" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+          <!-- Positive terminal -->
+          <rect x="462" y="110" width="36" height="100" rx="6" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.03)"/>
+
+          <!-- Inner area where liquid will show -->
+          <g id="battery-inner" transform="translate(54,60)">
+            <rect x="0" y="0" width="380" height="180" rx="14" ry="14" fill="rgba(255,255,255,0.02)"/>
+
+            <!-- Clipping path for fill -->
+            <clipPath id="clip">
+              <rect x="6" y="6" width="368" height="168" rx="12" ry="12"/>
+            </clipPath>
+
+            <!-- Liquid group with clip -->
+            <g clip-path="url(#clip)">
+              <rect id="liquid-rect" x="6" y="6" width="368" height="168" fill="url(#g1)" opacity="0.95" transform="translate(0,168)"/>
+              <!-- subtle overlay for sheen -->
+              <rect x="6" y="6" width="368" height="168" fill="rgba(255,255,255,0.02)"/>
+            </g>
+
+            <!-- Bolt icon (hidden/shown when charging) -->
+            <g id="svg-bolt" transform="translate(160,64)" style="opacity:0;transition:opacity 300ms">
+              <path d="M60 0 L20 0 L48 56 L12 56 L84 160 L70 88 L106 88 Z" fill="#fff"/>
+            </g>
+
+            <!-- Percentage text inside -->
+            <text id="svg-percent" x="190" y="130" text-anchor="middle" font-size="46" fill="white" font-weight="700" style="pointer-events:none;filter:drop-shadow(0 6px 12px rgba(0,0,0,0.6))">--%</text>
+          </g>
+        </svg>
+
+        <!-- Decorative bolt box (outside svg for clarity & animation) -->
+        <div style="position:absolute;right:18px;top:20px;">
+          <div class="bolt" id="boltBox" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path id="bolt-path" d="M13 2L3 14h7l-1 8L21 10h-7l-0.0-8z" fill="url(#ggrad)" transform="scale(1)"></path>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Liquid fallback for non-svg updating (for screen readers & reduced motion) -->
+        <div class="liquid" id="liquidFallback" aria-hidden="true"></div>
+      </div>
+
+      <div class="battery-meta" style="width:100%">
+        <div>
+          <div class="level-text" id="levelTxt">--%</div>
+          <div class="small muted" id="statusTxt">Detecting...</div>
+        </div>
+        <div style="margin-left:auto;text-align:right">
+          <div class="small muted">Health</div>
+          <div id="healthTxt" style="font-weight:700">Unknown</div>
+        </div>
+      </div>
+
+      <div class="progress-row" style="margin-top:6px">
+        <div class="progress" aria-hidden="true">
+          <i id="progressFill"></i>
+        </div>
+        <div style="width:82px;text-align:right">
+          <div class="small muted">Time</div>
+          <div id="timeTxt" style="font-weight:700">--:--</div>
+        </div>
+      </div>
+
+      <div class="info-grid" style="width:100%">
+        <div class="info">
+          <div class="small muted">Charging</div>
+          <div id="chargingTxt" style="font-weight:700">—</div>
+        </div>
+        <div class="info">
+          <div class="small muted">Voltage / Current</div>
+          <div id="voltTxt" style="font-weight:700">N/A</div>
+        </div>
+        <div class="info">
+          <div class="small muted">Device</div>
+          <div id="deviceTxt" style="font-weight:700">Browser</div>
+        </div>
+        <div class="info">
+          <div class="small muted">API support</div>
+          <div id="supportTxt" style="font-weight:700">—</div>
+        </div>
+      </div>
+
+      <div class="muted" style="margin-top:12px">Tip: On many mobile devices the browser exposes richer battery info. If data is unavailable you can use the demo slider below to simulate battery levels.</div>
+
+      <!-- Demo controls for unsupported browsers or for testing animations -->
+      <div class="demo" id="demoControls" aria-hidden="true">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <label class="small muted">Demo mode</label>
+          <input type="checkbox" id="demoToggle" aria-label="Toggle demo mode" />
+          <div style="margin-left:auto" class="small muted">Simulated device: <span id="simDevice">Phone</span></div>
+        </div>
+        <input type="range" id="demoRange" min="0" max="100" value="50" />
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:13px;color:var(--muted)">
+          <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+        </div>
+      </div>
+
+    </section>
+
+    <aside class="card">
+      <h3 style="margin-top:0">Connected devices</h3>
+      <p class="small muted">This panel can list multiple devices in a real app (via pairing). For this demo we simulate a few device types and allow quick presets to preview animations and behavior across form factors.</p>
+
+      <div class="devices-list" id="devicesList">
+        <div class="device" data-device="phone">
+          <div class="d-icon">📱</div>
+          <div class="d-info">
+            <div style="font-weight:700">Phone — Android</div>
+            <div class="small muted">Simulated internal battery</div>
+          </div>
+          <div class="d-actions">
+            <button class="btn" data-set="phone">Use</button>
+          </div>
+        </div>
+
+        <div class="device" data-device="laptop">
+          <div class="d-icon">💻</div>
+          <div class="d-info">
+            <div style="font-weight:700">Laptop — macOS</div>
+            <div class="small muted">Shows charging & time estimates</div>
+          </div>
+          <div class="d-actions">
+            <button class="btn" data-set="laptop">Use</button>
+          </div>
+        </div>
+
+        <div class="device" data-device="tablet">
+          <div class="d-icon">📟</div>
+          <div class="d-info">
+            <div style="font-weight:700">Tablet — iPad</div>
+            <div class="small muted">Simulated iOS-like behavior</div>
+          </div>
+          <div class="d-actions">
+            <button class="btn" data-set="tablet">Use</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <button class="btn" id="refreshBtn">Refresh / Re-detect</button>
+        <button class="btn" id="demoReset" style="margin-left:8px">Reset Demo</button>
+      </div>
+
+      <div style="margin-top:12px" class="muted small">Accessibility: The UI respects <code>prefers-reduced-motion</code>. Screen readers get numeric text feedback via aria-live regions.</div>
+    </aside>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
